@@ -26,14 +26,14 @@ Ambos resolvem o mesmo problema de controle ótimo (OCP) via L-BFGS-B com horizo
 
 | Métrica | LMPC Linear | ML-MPC Híbrido | Melhor | Redução |
 | :---: | :---: | :---: | :---: | :---: |
-| MAE (°C) | 21.85 | 9.64 | ML-MPC | -55.9 % |
-| RMSE (°C) | 21.85 | 12.66 | ML-MPC | -42.1 % |
+| MAE (°C) | 21.85 | 9.64 | ML-MPC | 55.9 % |
+| RMSE (°C) | 21.85 | 12.66 | ML-MPC | 42.1 % |
 | IAE | 4367.8 | 1927.2 | ML-MPC | -55.9 % |
 | Overshoot (°C) | 0.00 | 13.45 | LMPC | - |
 | Tempo acomodação (s) | Não acomoda | 5.8 | ML-MPC | - |
 
 
-O ML-MPC reduz MAE e IAE em ~56 % e RMSE em 42.1 % em relação ao LMPC. O LMPC apresenta overshoot nulo apenas porque nunca atinge o setpoint — permanece próximo do ponto de linearização e não chega a acomodar dentro da tolerância de ±2 %. O ML-MPC atinge o setpoint rapidamente, ao custo de um sobressinal de aproximadamente 13 °C, mitigável por reajuste dos pesos Q/R ou das soft constraints.
+O ML-MPC reduz MAE e IAE em 55.9 % e RMSE em 42.1 % em relação ao LMPC. O LMPC apresenta overshoot nulo apenas porque nunca atinge o setpoint — permanece próximo do ponto de linearização e não chega a acomodar dentro da tolerância de ±2 %. O ML-MPC atinge o setpoint rapidamente, ao custo de um sobressinal de aproximadamente 13 °C, mitigável por reajuste dos pesos Q/R ou das soft constraints.
 
 ### Rastreamento de Temperatura
 
@@ -51,13 +51,32 @@ Sinal de controle $$Q_{sig}$$ (%). O ML-MPC explora ativamente a faixa split-ran
 
 ![fig 3](ML_MPC/img_not_veis/fig3_erro_rastreamento.png)
 
-Evolução de |T_sp − T|. Após o degrau, o erro do LMPC permanece elevado e persistente, enquanto o do ML-MPC decai rapidamente.
+Evolução de $$|T_{sp} − T|$$. Após o degrau, o erro do LMPC permanece elevado e persistente, enquanto o do ML-MPC decai rapidamente.
 
 Os resultados confirmam a hipótese central do projeto: em transitórios severos, onde a não-linearidade de Arrhenius domina, o modelo linear perde validade e o controlador linear torna-se incapaz de rastrear o setpoint. O ML-MPC, ao preservar a estrutura fenomenológica não-linear e corrigi-la com a rede neural, mantém desempenho superior de rastreamento em toda a faixa de operação.
 
-O overshoot do ML-MPC indica espaço para sintonia: aumentar R (penalidade de esforço) ou reduzir a agressividade do horizonte suavizaria a resposta. O script tune_mpc.py do projeto, baseado em evolução diferencial, é o caminho natural para otimizar automaticamente Q e R.
+O overshoot do ML-MPC indica espaço para sintonia: aumentar R (penalidade de esforço) ou reduzir a agressividade do horizonte suavizaria a resposta. O script `tune_mpc.py` do projeto, baseado em evolução diferencial, é o caminho natural para otimizar automaticamente Q e R.
 
+### Auto-Sintonia por Evolução Diferencial
 
+Objetivo: Treinar um modelo suplente (rede neural) sobre dados transientes e, em seguida, otimizar automaticamente os pesos Q (rastreamento) e R (esforço) do ML-MPC via evolução diferencial, minimizando MAE + esforço de controle. Demonstrar a restrição suave de segurança: pede-se um setpoint perigoso (95 °C) e o controlador deve recusar-se a ultrapassar o limite de 90 °C, penalizando quadraticamente a violação na função de custo.
+
+| Suplente — melhor MSE validação| 	≈ 1×10⁻⁶ (excelente ajuste ao alvo)|
+| :---: | :---: |
+|Q ótimo encontrado|	23,79|
+|R ótimo encontrado|	0,82|
+|Custo mínimo (MAE + 0,05·esforço)|	6792,95|
+|Avaliações |114 avaliações|
+|Tempo|Aproximadamente 294s (orçamento reduzido)|
+
+![fig 4](ML_MPC/img_not_veis/res_tune.png)
+
+Esquerda: pontos (Q, R) avaliados pela evolução diferencial, coloridos pelo custo; a estrela marca o ótimo. 
+Direita: curva de convergência (melhor custo acumulado).
+
+A busca favorece Q alto (24) e R moderado (0.8), ou seja, prioriza fortemente o rastreamento com penalidade de esforço moderada. O orçamento foi reduzido para caber no tempo de execução.
+
+### NMPC Híbrido com Soft Constraints
 
 ---
 | Left | Center | Right |
