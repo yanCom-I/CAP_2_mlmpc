@@ -35,6 +35,30 @@ Ambos resolvem o mesmo problema de controle ótimo (OCP) via L-BFGS-B com horizo
 
 O ML-MPC reduz MAE e IAE em ~56 % e RMSE em 42.1 % em relação ao LMPC. O LMPC apresenta overshoot nulo apenas porque nunca atinge o setpoint — permanece próximo do ponto de linearização e não chega a acomodar dentro da tolerância de ±2 %. O ML-MPC atinge o setpoint rapidamente, ao custo de um sobressinal de aproximadamente 13 °C, mitigável por reajuste dos pesos Q/R ou das soft constraints.
 
+### Rastreamento de Temperatura
+
+![fig 1](ML_MPC/img_not_veis/fig1_rastreamento_temperatura.png)
+
+Resposta de temperatura no transitório de partida (50 °C → 65 °C). O LMPC (em vermelho) estabiliza abaixo do setpoint. O ML-MPC (azul) conduz o reator ao alvo, no entanto, com bastante instabilidade.
+
+### Ação de Controle 
+
+![fig 2](ML_MPC/img_not_veis/fig2_acao_controle.png)
+
+Sinal de controle $$Q_{sig}$$ (%). O ML-MPC explora ativamente a faixa split-range (aquecimento acima de 50 %), enquanto o LMPC permanece praticamente estático em torno de 50 %.
+
+### Erro absoluto de rastreamento
+
+![fig 3](ML_MPC/img_not_veis/fig3_erro_rastreamento.png)
+
+Evolução de |T_sp − T|. Após o degrau, o erro do LMPC permanece elevado e persistente, enquanto o do ML-MPC decai rapidamente.
+
+Os resultados confirmam a hipótese central do projeto: em transitórios severos, onde a não-linearidade de Arrhenius domina, o modelo linear perde validade e o controlador linear torna-se incapaz de rastrear o setpoint. O ML-MPC, ao preservar a estrutura fenomenológica não-linear e corrigi-la com a rede neural, mantém desempenho superior de rastreamento em toda a faixa de operação.
+
+O overshoot do ML-MPC indica espaço para sintonia: aumentar R (penalidade de esforço) ou reduzir a agressividade do horizonte suavizaria a resposta. O script tune_mpc.py do projeto, baseado em evolução diferencial, é o caminho natural para otimizar automaticamente Q e R.
+
+
+
 ---
 | Left | Center | Right |
 | :--- | :---: | ---: |
