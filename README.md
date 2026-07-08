@@ -2,6 +2,21 @@
 ### Repositório referente a 2ª atividade avaliativa da disciplina de Controle Avançado de Processos 
 Autores: Ian Ferreira e Maria Eduarda Cunha
 ---
+
+- [Introdução](#introdução)
+- [Formulação do Controle (do sistema de Benchmark)](#formulação-do-controle-do-sistema-de-benchmark)
+  - [Controladores comparados](#controladores-comparados)
+  - [Metodologia de Simulação](#metodologia-de-simulação)
+  - [Rastreamento de Temperatura](#rastreamento-de-temperatura)
+  - [Ação de Controle ](#ação-de-controle)
+  - [Erro absoluto de rastreamento](#erro-absoluto-de-rastreamento)
+- [Auto-Sintonia por Evolução Diferencial](#auto-sintonia-por-evolução-diferencial)
+- [NMPC Híbrido com Soft Constraints](#nmpc-híbrido-com-soft-constraints)
+- [Filtro de Kalman Estendido](#filtro-de-kalman-estendido)
+- [Referências](#referências)
+
+---
+
 ## Introdução
 
 O trabalho a seguir apresenta os resultados de simulação de uma estratégia de Controle Preditivo baseado em Modelo (MPC) aplicada a um reator químico contínuo de tanque agitado (CSTR) de etoxilação. Compara-se um controlador preditivo linear (LMPC), que emprega um modelo linearizado em torno de um ponto de operação fixo, contra um controlador híbrido ML-MPC, que combina os balanços fenomenológicos de massa e energia (gray-box) com um fator de correção cinética estimado por rede neural. O cenário de teste é um transitório de partida severo, com degrau de setpoint de 50 °C para 65 °C, região em que a não-linearidade de Arrhenius é acentuada.
@@ -33,7 +48,7 @@ Ambos resolvem o mesmo problema de controle ótimo (OCP) via L-BFGS-B com horizo
 | Tempo acomodação (s) | Não acomoda | 5.8 | ML-MPC | - |
 
 
-O ML-MPC reduz MAE e IAE em 55.9 % e RMSE em 42.1 % em relação ao LMPC. O LMPC apresenta overshoot nulo apenas porque nunca atinge o setpoint — permanece próximo do ponto de linearização e não chega a acomodar dentro da tolerância de ±2 %. O ML-MPC atinge o setpoint rapidamente, ao custo de um sobressinal de aproximadamente 13 °C, mitigável por reajuste dos pesos Q/R ou das soft constraints.
+O ML-MPC reduz MAE e IAE em 55.9 % e RMSE em 42.1 % em relação ao LMPC. O LMPC apresenta overshoot nulo apenas porque nunca atinge o setpoint — permanece próximo do ponto de linearização e não chega a acomodar dentro da tolerância de ±2 %. O ML-MPC atinge o setpoint rapidamente, ao custo de um overshoot de aproximadamente 13 °C, mitigável por reajuste dos pesos Q/R ou das soft constraints.
 
 ### Rastreamento de Temperatura
 
@@ -53,13 +68,13 @@ Sinal de controle $$Q_{sig}$$ (%). O ML-MPC explora ativamente a faixa split-ran
 
 Evolução de $$|T_{sp} − T|$$. Após o degrau, o erro do LMPC permanece elevado e persistente, enquanto o do ML-MPC decai rapidamente.
 
-Os resultados confirmam a hipótese central do projeto: em transitórios severos, onde a não-linearidade de Arrhenius domina, o modelo linear perde validade e o controlador linear torna-se incapaz de rastrear o setpoint. O ML-MPC, ao preservar a estrutura fenomenológica não-linear e corrigi-la com a rede neural, mantém desempenho superior de rastreamento em toda a faixa de operação.
+Os resultados confirmam a hipótese central do projeto: em estados transitórios severos, onde a não-linearidade de Arrhenius domina, o modelo linear perde validade e o controlador linear torna-se incapaz de rastrear o setpoint. O ML-MPC, ao preservar a estrutura fenomenológica não-linear e corrigi-la com a rede neural, mantém desempenho superior de rastreamento em toda a faixa de operação.
 
 O overshoot do ML-MPC indica espaço para sintonia: aumentar R (penalidade de esforço) ou reduzir a agressividade do horizonte suavizaria a resposta. O script `tune_mpc.py` do projeto, baseado em evolução diferencial, é o caminho natural para otimizar automaticamente Q e R.
 
-### Auto-Sintonia por Evolução Diferencial
+## Auto-Sintonia por Evolução Diferencial
 
-Objetivo: Treinar um modelo suplente (rede neural) sobre dados transientes e, em seguida, otimizar automaticamente os pesos Q (rastreamento) e R (esforço) do ML-MPC via evolução diferencial, minimizando MAE + esforço de controle. Demonstrar a restrição suave de segurança: pede-se um setpoint perigoso (95 °C) e o controlador deve recusar-se a ultrapassar o limite de 90 °C, penalizando quadraticamente a violação na função de custo.
+Objetivo: Treinar um modelo suplente (rede neural) sobre dados transientes e, em seguida, otimizar automaticamente os pesos Q (rastreamento) e R (esforço) do ML-MPC via evolução diferencial, minimizando MAE + esforço de controle.
 
 | Suplente — melhor MSE validação| 	≈ 1×10⁻⁶ (excelente ajuste ao alvo)|
 | :---: | :---: |
@@ -71,14 +86,41 @@ Objetivo: Treinar um modelo suplente (rede neural) sobre dados transientes e, em
 
 ![fig 4](ML_MPC/img_not_veis/res_tune.png)
 
-Esquerda: pontos (Q, R) avaliados pela evolução diferencial, coloridos pelo custo; a estrela marca o ótimo. 
+Esquerda: pontos (Q, R) avaliados pela evolução diferencial, coloridos pelo custo. A estrela marca o ótimo. 
 Direita: curva de convergência (melhor custo acumulado).
 
-A busca favorece Q alto (24) e R moderado (0.8), ou seja, prioriza fortemente o rastreamento com penalidade de esforço moderada. O orçamento foi reduzido para caber no tempo de execução.
+A busca favorece Q alto (24) e R moderado (0.8), ou seja, prioriza fortemente o rastreamento com penalidade de esforço moderada. 
+O orçamento foi reduzido para caber no tempo de execução.
 
-### NMPC Híbrido com Soft Constraints
+## NMPC Híbrido com Soft Constraints
+
+Objetivo: Demonstrar a restrição suave de segurança: pede-se um setpoint perigoso (95 °C) e o controlador deve recusar-se a ultrapassar o limite de 90 °C, penalizando quadraticamente a violação na função de custo.
+
+![fig 5](ML_MPC/img_not_veis/res_mpcsafe.png)
+
+O Comportamento do atuador mostra uma crescente do sinal $$Q_{sig}$$ para 100% de início, porém com um recuo para aproximadamente 73,7% ao estabilizar. A restrição mais maleável implementada tem um comportamento conforme o esperado, atuando com um custo massivo de violação para o otimizador, o fazendo sacrificar o rastreamento para manter a segurança. 
+
+## Filtro de Kalman Estendido
+
+Com o intuito de estimar os estados não medidos do reator (concentrações CA, CB, CC) a partir de medições ruidosas de temperatura e volume, usando o ciclo predição e posterior correção do Filtro extendido com Jacobiano numérico.
+
+### Cenário Executado
+
+- Estado verdadeiro oculto: CA = 600; o EKF é inicializado propositalmente errado em CA = 200.
+- Sensores com ruído gaussiano ($$σ_T$$ = 0,5 K; $$σ_V$$ = 0,01 m³), aquecimento constante $$Q_{sig}$$ = 60 %, 100 passos.
+
+![fig 6](ML_MPC/img_not_veis/res_ekf.png)
+
+É possível notar que filtro roda de forma estável e estima muito bem a temperatura (estado medido), assim como acompanhha os valores reais filtrando os ruídos do sensor. A concentração CA, porém, converge fracamente porque é um estado apenas fracamente acoplado à temperatura no ponto de operação e atuação do controlador — ou seja, há baixa observabilidade. Há uma redução do erro de CA aproximadamente 21.8%, no entanto. O que ainda é distante do valor real do sistema. 
 
 ---
-| Left | Center | Right |
-| :--- | :---: | ---: |
-| Text | Text | Text |
+## Referências
+
+1. Fogler, H. S. (2016). *Elements of Chemical Reaction Engineering* (5th ed.). Prentice Hall.
+2. Seborg, D. E., Edgar, T. F., Mellichamp, D. A., & Doyle, F. J. (2016). *Process Dynamics and Control* (4th ed.). Wiley.
+3. Skogestad, Sigurd. *Simple Analytic Rules for Model Reduction and PID Controller Tuning. Journal of Process Control*, v. 13, n. 4, p. 291-309, 2003.
+4. Smith, J. M., Van Ness, H. C., & Abbott, M. M. (2005). *Introduction to Chemical Engineering Thermodynamics* (7th ed.). McGraw-Hill.
+5. Marlin, T. E. (2000). *Process Control: Designing Processes and Control Systems for Dynamic Performance* (2nd ed.). McGraw-Hill.
+6. Luyben, W. L. (1990). *Process Modeling, Simulation, and Control for Chemical Engineers* (2nd ed.). McGraw-Hill.
+7. WANG, W. et al. *Explicit machine learning-based model predictive control of nonlinear processes via multi-parametric programming*. Computers & Chemical Engineering, v. 187, n. 108599, p. 1-14, 2024.
+8. ZANON, Mario e GROS, Sebastien. *Safe Reinforcement Learning Using Robust MPC*. IEEE Transactions on Automatic Control, vol. 66, no. 8, pp. 3638-3652, Aug. 2021, doi: 10.1109/TAC.2020.3024161
